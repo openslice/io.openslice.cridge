@@ -1,0 +1,118 @@
+spring:
+  application:
+    name: openslice-assurance-services-management-api
+ # datasource:
+    #url: jdbc:h2:mem:db;DB_CLOSE_DELAY=-1
+    #password: sa
+    #username: sa
+  #jpa:
+    #database-platform: org.hibernate.dialect.H2Dialect
+    #hibernate:
+      #ddl-auto: create-drop
+      #hbm2ddl.auto: create-drop
+    #show-sql: false
+    #generate-ddl: true
+ # Embedded ActiveMQ Configuration Example
+  activemq:
+      broker-url: vm://embedded?broker.persistent=false,useShutdownHook=false
+      in-memory: true
+      non-blocking-redelivery: true
+      pool:
+        block-if-full: true
+        block-if-full-timeout: -1
+        create-connection-on-startup: true
+        enabled: false
+        expiry-timeout: 0
+        idle-timeout: 30000
+        max-connections: 1
+        maximum-active-session-per-connection: 500
+        reconnect-on-exception: true
+        time-between-expiration-check: -1
+        use-anonymous-producers: true
+  # Spring JMS Settings
+  jms:
+    listener:
+      acknowledge-mode: auto
+      auto-startup: true
+      concurrency: 5
+      max-concurrency: 10
+    pub-sub-domain: false
+    template:
+      default-destination:
+      delivery-mode: non_persistent
+      priority: 100
+      qos-enabled: true
+      receive-timeout: 1000
+      time-to-live: 36000
+      
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    org.hibernate.SQL: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: INFO
+    io.openslice.oas: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+    file: "%d %p %c{1.} [%t] %m%n"
+
+swagger:
+  authserver: http://localhost/auth/realms/openslice
+  clientid: "osapiWebClientId"
+  clientsecret: "secret"
+
+oauthsign:
+   key: "XXX"
+
+
+
+
+CATALOG_GET_SERVICEORDERS: "jms:queue:CATALOG.GET.SERVICEORDERS"
+CATALOG_GET_SERVICEORDER_BY_ID: "jms:queue:CATALOG.GET.SERVICEORDER_BY_ID"
+CATALOG_UPD_SERVICEORDER_BY_ID: "jms:queue:CATALOG.UPD.SERVICEORDER_BY_ID"
+CATALOG_GET_INITIAL_SERVICEORDERS_IDS: "jms:queue:CATALOG.GET.INITIAL_SERVICEORDERS"
+CATALOG_GET_SERVICEORDER_IDS_BY_STATE: "jms:queue:CATALOG.GET.ACKNOWLEDGED_SERVICEORDERS"
+CATALOG_ADD_SERVICE: "jms:queue:CATALOG.ADD.SERVICE"
+CATALOG_UPD_SERVICE: "jms:queue:CATALOG.UPD.SERVICE"
+CATALOG_GET_SERVICE_BY_ID: "jms:queue:CATALOG.GET.SERVICE"
+CATALOG_SERVICE_QUEUE_ITEMS_GET: "jms:queue:CATALOG.SERVICEQUEUEITEMS.GET"
+CATALOG_SERVICE_QUEUE_ITEM_UPD: "jms:queue:CATALOG.SERVICEQUEUEITEM.UPDATE"
+CATALOG_SERVICE_QUEUE_ITEM_DELETE: "jms:queue:CATALOG.SERVICEQUEUEITEM.DELETE"
+CATALOG_GET_SERVICESPEC_BY_ID: "jms:queue:CATALOG.GET.SERVICESPEC_BY_ID"
+CATALOG_SERVICES_TO_TERMINATE: "jms:queue:CATALOG.GET.SERVICETOTERMINATE"
+CATALOG_SERVICES_OF_PARTNERS: "jms:queue:CATALOG.GET.SERVICESOFPARTNERS"
+
+CATALOG_GET_PARTNER_ORGANIZATON_BY_ID: "jms:queue:CATALOG.GET.PARTNER_ORGANIZATION_BY_ID"
+CATALOG_UPDATE_PARTNER_ORGANIZATION: "jms:queue:CATALOG.UPD.PARTNER_ORGANIZATION"
+CATALOG_GET_EXTERNAL_SERVICE_PARTNERS: "jms:queue:CATALOG.GET.EXTERNALSERVICEPARTNERS"
+CATALOG_UPD_EXTERNAL_SERVICESPEC: "jms:queue:CATALOG.UPD.EXTERNAL_SERVICESPEC"
+
+NFV_CATALOG_DEPLOY_NSD_REQ: "jms:queue:NFVCATALOG.DEPLOY.NSD_REQ"
+NFV_CATALOG_GET_DEPLOYMENT_BY_ID : "jms:queue:NFVCATALOG.GET.DEPLOYMENT_BY_ID"
+NFV_CATALOG_GET_NSD_BY_ID: "jms:queue:NFVCATALOG.GET.NSD_BY_ID" 
+NFV_CATALOG_UPD_DEPLOYMENT_BY_ID: "jms:queue:NFVCATALOG.UPD.DEPLOYMENT_BY_ID"
+NFV_CATALOG_NS_DAY2_ACTION: "jms:queue:ns.action.run"
+
+
+
+#ALARMS
+ALARMS_ADD_ALARM: "jms:queue:ALARMS.ADD.ALARM"
+ALARMS_UPDATE_ALARM: "jms:queue:ALARMS.UPDATE.ALARM"
+ALARMS_GET_ALARM: "jms:queue:ALARMS.GET.ALARM"
+
+#EVENT TOPICS IN Message Bus
+EVENT_SERVICE_CREATE: "jms:topic:EVENT.SERVICE.CREATE"
+EVENT_SERVICE_STATE_CHANGED: "jms:topic:EVENT.SERVICE.STATECHANGED"
+EVENT_SERVICE_DELETE: "jms:topic:EVENT.SERVICE.DELETE"
+EVENT_SERVICE_ATTRIBUTE_VALUE_CHANGED: "jms:topic:EVENT.SERVICE.ATTRCHANGED"
+EVENT_SERVICE_ORDER_CREATE: "jms:topic:EVENT.SERVICEORDER.CREATE"
+EVENT_SERVICE_ORDER_STATE_CHANGED: "jms:topic:EVENT.SERVICEORDER.STATECHANGED"
+EVENT_SERVICE_ORDER_DELETE: "jms:topic:EVENT.SERVICEORDER.DELETE"
+EVENT_SERVICE_ORDER_ATTRIBUTE_VALUE_CHANGED: "jms:topic:EVENT.SERVICEORDER.ATTRCHANGED"
+EVENT_CUSTOMER_CREATE: "jms:topic:EVENT.CUSTOMER.CREATE"
+EVENT_CUSTOMER_CHANGED: "jms:topic:EVENT.CUSTOMER.CHANGE"
+EVENT_INDIVIDUAL_CREATE: "jms:topic:EVENT.INDIVIDUAL.CREATE"
+EVENT_INDIVIDUAL_CHANGED: "jms:topic:EVENT.INDIVIDUAL.CHANGE"
+EVENT_ORGANIZATION_CREATE: "jms:topic:EVENT.ORGANIZATION.CREATE"
+EVENT_ORGANIZATION_CHANGED: "jms:topic:EVENT.ORGANIZATION.CHANGE"
+EVENT_ALARM_CREATE: "jms:topic:EVENT.ALARM.CREATE"
