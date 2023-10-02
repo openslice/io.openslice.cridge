@@ -33,6 +33,7 @@ import io.openslice.tmf.rcm634.model.ResourceSpecificationCreate;
 import io.openslice.tmf.rcm634.model.ResourceSpecificationRef;
 import io.openslice.tmf.ri639.model.Resource;
 import io.openslice.tmf.ri639.model.ResourceCreate;
+import io.openslice.tmf.ri639.model.ResourceUpdate;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
@@ -52,8 +53,6 @@ public class WatcherService {
 	@Autowired
 	private KubernetesClientResource kubernetesClientResource;
 
-	@Autowired
-	private ModelTransformer modelTransformer;
 
 	@EventListener
 	public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -81,23 +80,29 @@ public class WatcherService {
 		podInformer.addEventHandler(new ResourceEventHandler<CustomResourceDefinition>() {
 			@Override
 			public void onAdd(CustomResourceDefinition crd) {
-				logger.debug("ADDED {} CRD:{} Group:{} Kind:{} UID:{} ", crd.getKind(), crd.getMetadata().getName(),
-						crd.getSpec().getGroup(), crd.getSpec().getNames().getKind(), crd.getMetadata().getUid());
-				createCRDSharedIndexInformer(crd);
+				logger.debug("ADDED {} CRD:{} Group:{} Kind:{} UID:{} ", crd.getKind(), 
+						crd.getMetadata().getName(),
+						crd.getSpec().getGroup(), 
+						crd.getSpec().getNames().getKind(),
+						crd.getMetadata().getUid());
+				
 	
 					          
-				List<ResourceCreate> rspec = kubernetesClientResource.CRD2TMFResource(crd);
-				for (ResourceCreate rs : rspec) {
-				  catalogClient.createOrUpdateResourceByNameCategoryVersion( rs );			
+				List<KubernetesCRDV1> rspec = kubernetesClientResource.KubernetesCRD2OpensliceCRD(crd);
+				for (KubernetesCRDV1 rs : rspec) {
+					  catalogClient.createOrUpdateResourceSpecByNameCategoryVersion(rs.toRSpecCreate());			
+					  catalogClient.createOrUpdateResourceByNameCategoryVersion( rs.toResourceCreate() );			
 				}
 				
 		          
+
+				createCRDSharedIndexInformer(crd);
 
 			}
 
 			@Override
 			public void onUpdate(CustomResourceDefinition oldcrd, CustomResourceDefinition newcrd) {
-				logger.debug("CRD_UPDATED {} for kind {}", newcrd.getKind(), newcrd.getSpec().getNames().getKind());
+				logger.debug("CRD_UPDATED {} {} for kind {}", newcrd.getKind(), newcrd.getSpec().getGroup(), newcrd.getSpec().getNames().getKind());
 
 				String oldLAC = oldcrd.getMetadata().getAnnotations()
 						.get("kubectl.kubernetes.io/last-applied-configuration");
@@ -209,21 +214,6 @@ public class WatcherService {
 			return;
 		}
 
-//		kubernetesClientResource.getKubernetesClient().genericKubernetesResources(context).list().getItems().forEach(res -> {
-//
-//			 logger.debug("\t CR:{} Group:{} Kind:{} UID:{} ", 
-//					 res.getMetadata().getName(),
-//					 res.getApiVersion(),
-//					 res.getKind() , 
-//					 res.getMetadata().getUid());
-//			 res.getAdditionalProperties().forEach( (pk, pv) -> {
-//              	logger.debug("\t {} {} ", pk, pv );
-//              	Map<String, Object> values = (Map<String, Object>) pv;
-//              	values.forEach( (speck, specv) -> logger.debug("\t  {}={} ", speck, specv ) );
-//              });
-//
-//		});
-
 		logger.debug("Creating new Watcher for kind: {}", crd.getSpec().getNames().getKind());
 		Watch watch = kubernetesClientResource.getKubernetesClient().genericKubernetesResources(context).inAnyNamespace().watch(new Watcher<>() {
 
@@ -244,13 +234,12 @@ public class WatcherService {
 				});
 				//ADDED, DELETED, MODIFIED, BOOKMARK, ERROR
 				if ( action.name().equals( "ADDED" ) ) {
-					ResourceCreate rs  = kubernetesClientResource.genericKubernetesResource2TMFResource( genericKubernetesResource );
-					catalogClient.createOrUpdateResourceByNameCategoryVersion( rs );			
-					
+				  updateOSLCatalog( genericKubernetesResource );				  
+				
 				} else if ( action.name().equals( "MODIFIED" ) ) {
-					
+                  updateOSLCatalog( genericKubernetesResource );					
 				} else if ( action.name().equals( "DELETED" ) ) {
-					
+                  updateOSLCatalog( genericKubernetesResource );					
 				} else {
 					
 				}
@@ -263,6 +252,24 @@ public class WatcherService {
 			}
 
 		});
+
+	}
+
+	protected void updateOSLCatalog(GenericKubernetesResource genericKubernetesResource) {
+	  String oslResourceId = genericKubernetesResource.getMetadata().getLabels().get("org.etsi.osl.resourceId");
+
+	  if ( oslResourceId != null ) {
+	    ResourceUpdate rs = kubernetesClientResource
+            .KubernetesCR2OpensliceCR( genericKubernetesResource )
+            .toResourceUpdate();
+	    catalogClient.updateResourceById(oslResourceId, rs);
+	  }else {
+	      ResourceCreate rs = kubernetesClientResource
+	          .KubernetesCR2OpensliceCR( genericKubernetesResource )
+	          .toResourceCreate();
+
+	      catalogClient.createOrUpdateResourceByNameCategoryVersion( rs );	    
+	  }            
 
 	}
 

@@ -7,20 +7,24 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.camel.LoggingLevel;
 import org.apache.camel.ProducerTemplate;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.model.dataformat.JsonLibrary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import io.openslice.model.DeploymentDescriptor;
 import io.openslice.tmf.rcm634.model.LogicalResourceSpecification;
 import io.openslice.tmf.rcm634.model.ResourceSpecification;
 import io.openslice.tmf.rcm634.model.ResourceSpecificationCreate;
 import io.openslice.tmf.ri639.model.LogicalResource;
 import io.openslice.tmf.ri639.model.Resource;
 import io.openslice.tmf.ri639.model.ResourceCreate;
+import io.openslice.tmf.ri639.model.ResourceUpdate;
 
 /**
  * @author ctranoris
@@ -54,20 +58,20 @@ public class CatalogClient  extends RouteBuilder{
 	@Value("${CATALOG_UPDADD_RESOURCE}")
 	private String CATALOG_UPDADD_RESOURCE = "";
 	
-	
+
+    @Value("${CATALOG_UPD_RESOURCE}")
+    private String CATALOG_UPD_RESOURCE = "";
 
 	@Value("${CATALOG_GET_RESOURCE_BY_ID}")
 	private String CATALOG_GET_RESOURCE_BY_ID = "";
 	
 
-
 	@Override
 	public void configure() throws Exception {
 
-		logger.info(" Camel configuration started"   );
-		from("activemq:queue:centrallogger.log")
-		.log( "activemq:queue:centrallogger.log package with body ${body} !" )	
-	    .end();
+
+		
+	
 	}
 	
 	
@@ -209,5 +213,32 @@ public class CatalogClient  extends RouteBuilder{
 	        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 	        return mapper.writeValueAsString(object);
 	    }
+
+
+  public Resource updateResourceById(String oslResourceId, ResourceUpdate rs) {
+
+    
+    logger.info("will update Resource : " + oslResourceId );
+    try {
+        Map<String, Object> map = new HashMap<>();
+        map.put("resourceId", oslResourceId );
+        map.put("propagateToSO", false );
+        
+        Object response = template.requestBodyAndHeaders( CATALOG_UPD_RESOURCE, toJsonString(rs), map);
+
+        if ( !(response instanceof String)) {
+            logger.error("Service Instance object is wrong.");
+        }
+
+        LogicalResource resourceInstance = toJsonObj( (String)response, LogicalResource.class); 
+        //logger.debug("createService response is: " + response);
+        return resourceInstance;
+        
+        
+    }catch (Exception e) {
+        logger.error("Cannot update Service: " + oslResourceId + ": " + e.toString());
+    }
+    return null;
+  }
 
 }
