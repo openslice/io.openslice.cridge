@@ -4,6 +4,7 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import io.fabric8.kubernetes.api.model.GenericKubernetesResource;
+import io.fabric8.kubernetes.api.model.Namespace;
+import io.fabric8.kubernetes.api.model.NamespaceBuilder;
+import io.fabric8.kubernetes.api.model.ObjectMeta;
 import io.fabric8.kubernetes.api.model.apiextensions.v1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apiextensions.v1.JSONSchemaProps;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -330,14 +334,74 @@ public class KubernetesClientResource {
         if (hval instanceof String s) {
           if ( hname.contains("org.etsi.osl")) {
             logger.debug("Header: {} = {} ", hname, s );      
+            if ( gkr.getMetadata() == null ) {
+              gkr.setMetadata( new ObjectMeta());
+              gkr.getMetadata().setLabels( new HashMap<String, String>());
+            }
+            gkr.getMetadata().getLabels().put(hname, s);
+          }
+        }
+      }));
+      gkr.getMetadata().setName( "cr-" + (String) headers.get("org.etsi.osl.resourceId")) ;
+      
+      String nameSpacename = gkr.getMetadata().getNamespace();
+      if ( gkr.getMetadata().getNamespace() == null ) {
+               gkr.getMetadata().setNamespace( (String) headers.get("org.etsi.osl.serviceOrderId")  );
+               nameSpacename = gkr.getMetadata().getNamespace();        
+      }
+      try {
+
+        //first try create namespace
+        Namespace ns = new NamespaceBuilder()
+            .withNewMetadata()
+            .withName( nameSpacename )
+            .addToLabels("org.etsi.osl", "org.etsi.osl")
+            .endMetadata().build();
+        k8s.namespaces().resource(ns).create();
+      }catch (Exception e) {
+        e.printStackTrace();
+      }
+      
+      Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
+      dummyObject.create();      
+    }
+
+    return "DONE";
+
+  }
+  
+  public String deleteCR(Map<String, Object> headers, String crspec) {
+
+    logger.debug("============ DELETE crspec =============" );
+    logger.debug("{}", crspec );
+   
+    
+
+    try (final KubernetesClient k8s = new KubernetesClientBuilder().build()) {
+
+      GenericKubernetesResource gkr =  Serialization.unmarshal( crspec );
+      headers.forEach(((hname, hval) ->{
+        if (hval instanceof String s) {
+          if ( hname.contains("org.etsi.osl")) {
+            logger.debug("Header: {} = {} ", hname, s );      
             gkr.getMetadata().getLabels().put(hname, s);
           }
         }
       }));
       gkr.getMetadata().setName( "cr-" + (String) headers.get("org.etsi.osl.resourceId")) ;
       Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
-      dummyObject.create();      
+      dummyObject.delete();      
     }
+
+    return "DONE";
+
+  }
+  
+  public String patchCR(Map<String, Object> headers, String crspec) {
+
+    logger.debug("============ PATCH crspec =============" );
+    logger.debug("{}", crspec );
+    logger.error("NOT IMPLEMENTED" );
 
     return "DONE";
 

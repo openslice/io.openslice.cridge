@@ -218,6 +218,7 @@ public class WatcherService {
 		Watch watch = kubernetesClientResource.getKubernetesClient().genericKubernetesResources(context).inAnyNamespace().watch(new Watcher<>() {
 
 			private String watcherResourcesName;
+			
 
 			@Override
 			public void eventReceived(Action action, GenericKubernetesResource genericKubernetesResource) {
@@ -249,6 +250,8 @@ public class WatcherService {
 			@Override
 			public void onClose(WatcherException e) {
 				logger.info("Closing resources Watcher of {} due to {} ", watcherResourcesName, e.getMessage());
+				createCRDSharedIndexInformer(crd); //schedule a new one
+				return;
 			}
 
 		});

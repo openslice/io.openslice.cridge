@@ -14,6 +14,14 @@ public class CRRouteBuilder  extends RouteBuilder{
 	@Value("${CRD_DEPLOY_CR_REQ}")
 	private String CRD_DEPLOY_CR_REQ = "";
 
+
+    @Value("${CRD_PATCH_CR_REQ}")
+    private String CRD_PATCH_CR_REQ = "";
+    
+    @Value("${CRD_DELETE_CR_REQ}")
+    private String CRD_DELETE_CR_REQ = "";
+	
+
 	@Autowired
 	private KubernetesClientResource kubernetesClientResource;
 	
@@ -27,6 +35,19 @@ public class CRRouteBuilder  extends RouteBuilder{
 		.to("log:DEBUG?showBody=true&showHeaders=true")
 		.bean( kubernetesClientResource, "deployCR(${headers}, ${body})")
 		.convertBodyTo( String.class );
+		
+		from( CRD_DELETE_CR_REQ )
+        .log(LoggingLevel.INFO, log, CRD_DELETE_CR_REQ + " message received!")
+        .to("log:DEBUG?showBody=true&showHeaders=true")
+        .bean( kubernetesClientResource, "deleteCR(${headers}, ${body})")
+        .convertBodyTo( String.class );
+        
+        from( CRD_PATCH_CR_REQ )
+        .log(LoggingLevel.INFO, log, CRD_PATCH_CR_REQ + " message received!")
+        .to("log:DEBUG?showBody=true&showHeaders=true")
+        .bean( kubernetesClientResource, "patchCR(${headers}, ${body})")
+        .convertBodyTo( String.class );
+        
 		
 	}
 
