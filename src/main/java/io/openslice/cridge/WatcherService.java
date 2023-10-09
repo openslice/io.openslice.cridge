@@ -74,10 +74,10 @@ public class WatcherService {
 
 		SharedInformerFactory sharedInformerFactory = kubernetesClientResource.getKubernetesClient().informers();
 
-		SharedIndexInformer<CustomResourceDefinition> podInformer = sharedInformerFactory
+		SharedIndexInformer<CustomResourceDefinition> shixInformer = sharedInformerFactory
 				.sharedIndexInformerFor(CustomResourceDefinition.class, 30 * 1000L);
 
-		podInformer.addEventHandler(new ResourceEventHandler<CustomResourceDefinition>() {
+		shixInformer.addEventHandler(new ResourceEventHandler<CustomResourceDefinition>() {
 			@Override
 			public void onAdd(CustomResourceDefinition crd) {
 				logger.debug("ADDED {} CRD:{} Group:{} Kind:{} UID:{} ", crd.getKind(), 
@@ -90,8 +90,8 @@ public class WatcherService {
 					          
 				List<KubernetesCRDV1> rspec = kubernetesClientResource.KubernetesCRD2OpensliceCRD(crd);
 				for (KubernetesCRDV1 rs : rspec) {
-					  catalogClient.createOrUpdateResourceSpecByNameCategoryVersion(rs.toRSpecCreate());			
-					  catalogClient.createOrUpdateResourceByNameCategoryVersion( rs.toResourceCreate() );			
+					  catalogClient.createOrUpdateResourceSpecByNameCategoryVersion(rs.toRSpecCreate());
+					  catalogClient.createOrUpdateResourceByNameCategoryVersion( rs.toResourceCreate() );
 				}
 				
 		          
@@ -235,12 +235,12 @@ public class WatcherService {
 				});
 				//ADDED, DELETED, MODIFIED, BOOKMARK, ERROR
 				if ( action.name().equals( "ADDED" ) ) {
-				  updateOSLCatalog( genericKubernetesResource );				  
+				  updateGenericKubernetesResourceInOSLCatalog( genericKubernetesResource );				  
 				
 				} else if ( action.name().equals( "MODIFIED" ) ) {
-                  updateOSLCatalog( genericKubernetesResource );					
+                  updateGenericKubernetesResourceInOSLCatalog( genericKubernetesResource );					
 				} else if ( action.name().equals( "DELETED" ) ) {
-                  updateOSLCatalog( genericKubernetesResource );					
+                  updateGenericKubernetesResourceInOSLCatalog( genericKubernetesResource );					
 				} else {
 					
 				}
@@ -255,10 +255,12 @@ public class WatcherService {
 			}
 
 		});
+		
+		
 
 	}
 
-	protected void updateOSLCatalog(GenericKubernetesResource genericKubernetesResource) {
+	protected void updateGenericKubernetesResourceInOSLCatalog(GenericKubernetesResource genericKubernetesResource) {
 	  String oslResourceId = genericKubernetesResource.getMetadata().getLabels().get("org.etsi.osl.resourceId");
 
 	  if ( oslResourceId != null ) {

@@ -3,7 +3,7 @@ package io.openslice.cridge;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
+import java.util.concurrent.ConcurrentHashMap;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -65,11 +65,19 @@ public class CatalogClient  extends RouteBuilder{
 	@Value("${CATALOG_GET_RESOURCE_BY_ID}")
 	private String CATALOG_GET_RESOURCE_BY_ID = "";
 	
+	
+    //private ConcurrentHashMap<String, ResourceUpdate> resourcesToBeUpdated = new ConcurrentHashMap<>();
+	
 
 	@Override
 	public void configure() throws Exception {
 
 
+	  
+//	  from( "timer://processUpdateResources?period=5000" )
+//      .log(LoggingLevel.INFO, log, " process processUpdateResources!")
+//      .to("log:DEBUG?showBody=true&showHeaders=true")
+//      .bean( "catalogClient", "processUpdateResources()");
 		
 	
 	}
@@ -202,43 +210,86 @@ public class CatalogClient  extends RouteBuilder{
 	
 
 	
-	static <T> T toJsonObj(String content, Class<T> valueType)  throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        return mapper.readValue( content, valueType);
-    }
+	private <T> T toJsonObj(String content, Class<T> valueType)  throws IOException {
+	  ObjectMapper mapper = new ObjectMapper();
+	  mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+	  return mapper.readValue( content, valueType);
+	}
 
-	 static String toJsonString(Object object) throws IOException {
-	        ObjectMapper mapper = new ObjectMapper();
-	        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-	        return mapper.writeValueAsString(object);
+	private   String toJsonString(Object object) throws IOException {
+	  ObjectMapper mapper = new ObjectMapper();
+	  mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+	  return mapper.writeValueAsString(object);
+	}
+
+	
+
+	public Resource updateResourceById(String oslResourceId, ResourceUpdate rs) {
+
+
+	  logger.info("will update Resource : " + oslResourceId );
+	  try {
+	    Map<String, Object> map = new HashMap<>();
+	    map.put("resourceId", oslResourceId );
+	    map.put("propagateToSO", false );
+
+	    Object response = template.requestBodyAndHeaders( CATALOG_UPD_RESOURCE, toJsonString(rs), map);
+
+	    if ( !(response instanceof String)) {
+	      logger.error("Service Instance object is wrong.");
 	    }
 
+	    LogicalResource resourceInstance = toJsonObj( (String)response, LogicalResource.class); 
+	    //logger.debug("createService response is: " + response);
+	    return resourceInstance;
 
-  public Resource updateResourceById(String oslResourceId, ResourceUpdate rs) {
 
+	  }catch (Exception e) {
+        e.printStackTrace();
+	    logger.error("Cannot update Service: " + oslResourceId + ": " + e.toString());
+	  }
+	  return null;
+	}
+
+//  public void updateResourceById(String oslResourceId, ResourceUpdate rs) {
+//
+//    resourcesToBeUpdated.put(oslResourceId, rs);
+//   
+//    
+//  }
     
-    logger.info("will update Resource : " + oslResourceId );
-    try {
-        Map<String, Object> map = new HashMap<>();
-        map.put("resourceId", oslResourceId );
-        map.put("propagateToSO", false );
-        
-        Object response = template.requestBodyAndHeaders( CATALOG_UPD_RESOURCE, toJsonString(rs), map);
-
-        if ( !(response instanceof String)) {
-            logger.error("Service Instance object is wrong.");
-        }
-
-        LogicalResource resourceInstance = toJsonObj( (String)response, LogicalResource.class); 
-        //logger.debug("createService response is: " + response);
-        return resourceInstance;
-        
-        
-    }catch (Exception e) {
-        logger.error("Cannot update Service: " + oslResourceId + ": " + e.toString());
-    }
-    return null;
-  }
+//  public void processUpdateResources() {
+//    
+//    resourcesToBeUpdated.forEach( (oslResourceId, rs) -> {
+//      
+//      logger.info("will update Resource : " + oslResourceId );
+//      try {
+//          Map<String, Object> map = new HashMap<>();
+//          map.put("resourceId", oslResourceId );
+//          map.put("propagateToSO", false );
+//          String json = toJsonString(rs);
+//          Object response = template.requestBodyAndHeaders( CATALOG_UPD_RESOURCE, json, map);
+//
+//          if ( !(response instanceof String)) {
+//              logger.error("Service Instance object is wrong.");
+//          }
+//
+//          //LogicalResource resourceInstance = toJsonObj( (String)response, LogicalResource.class); 
+//          //logger.debug("createService response is: " + response);
+//          //return resourceInstance;
+//          
+//          resourcesToBeUpdated.remove(oslResourceId);
+//          
+//
+//          logger.info("Updated successfully Resource : " + oslResourceId );
+//      }catch (Exception e) {
+//        e.printStackTrace();
+//          logger.error("Cannot update Resource: " + oslResourceId + ": " + e.toString());
+//      }
+//      
+//      
+//      
+//    });
+//  }
 
 }

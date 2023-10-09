@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
+import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,21 +18,31 @@ import io.fabric8.kubernetes.api.model.GenericKubernetesResource;
 import io.fabric8.kubernetes.api.model.Namespace;
 import io.fabric8.kubernetes.api.model.NamespaceBuilder;
 import io.fabric8.kubernetes.api.model.ObjectMeta;
+import io.fabric8.kubernetes.api.model.Secret;
+import io.fabric8.kubernetes.api.model.StatusDetails;
 import io.fabric8.kubernetes.api.model.apiextensions.v1.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apiextensions.v1.JSONSchemaProps;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
+import io.fabric8.kubernetes.client.Watch;
+import io.fabric8.kubernetes.client.Watcher;
+import io.fabric8.kubernetes.client.WatcherException;
 import io.fabric8.kubernetes.client.dsl.Resource;
+import io.fabric8.kubernetes.client.informers.ResourceEventHandler;
+import io.fabric8.kubernetes.client.informers.SharedIndexInformer;
+import io.fabric8.kubernetes.client.informers.SharedInformerFactory;
 import io.fabric8.kubernetes.client.utils.Serialization;
 import io.openslice.domain.model.DomainModelDefinition;
 import io.openslice.domain.model.kubernetes.KubernetesCRDProperty;
 import io.openslice.domain.model.kubernetes.KubernetesCRDV1;
 import io.openslice.domain.model.kubernetes.KubernetesCRV1;
 import io.openslice.domain.model.kubernetes.KubernetesContextDefinition;
+import io.openslice.domain.model.kubernetes.KubernetesSecret;
 import io.openslice.tmf.common.model.EValueType;
 import io.openslice.tmf.rcm634.model.ResourceSpecification;
 import io.openslice.tmf.ri639.model.ResourceCreate;
 import io.openslice.tmf.ri639.model.ResourceStatusType;
+import io.openslice.tmf.ri639.model.ResourceUpdate;
 import lombok.Getter;
 
 /**
@@ -55,6 +65,16 @@ public class KubernetesClientResource {
   private ResourceSpecification kubernetesCRDV1ResourceSpec = null;
 
   private ResourceSpecification kubernetesCRV1ResourceSpec = null;
+  
+  private ResourceSpecification kubernetesSecretResourceSpec = null;
+  
+
+  /**
+   * Garbage collect namespaces to be deleted
+   */
+  private ConcurrentHashMap<String, String> nameSpacesTobeDeleted = new ConcurrentHashMap<>();
+
+  
 
   /**
    * @return the opensliceResourceSpecification
@@ -93,6 +113,11 @@ public class KubernetesClientResource {
           KubernetesCRV1.OSL_KUBCRV1_RSPEC_NAME, 
           KubernetesCRV1.OSL_KUBCRV1_RSPEC_CATEGORY,
           KubernetesCRV1.OSL_KUBCRV1_RSPEC_VERSION);
+
+      kubernetesSecretResourceSpec  = catalogClient.retrieveResourceSpecByNameCategoryVersion(
+          KubernetesSecret.OSL_KUBSECRET_RSPEC_NAME, 
+          KubernetesSecret.OSL_KUBSECRET_RSPEC_CATEGORY,
+          KubernetesSecret.OSL_KUBSECRET_RSPEC_VERSION);
 
     }
     return kubernetesContextDefinition;
@@ -319,6 +344,66 @@ public class KubernetesClientResource {
 
 
   }
+  
+  
+  private KubernetesSecret KubernetesSecret2OpensliceResource(Secret secret) {
+
+    
+    String baseCRD = String.format( "%s@%s@%s@%s",
+        secret.getKind(),
+        secret.getApiVersion(),
+        kubernetesClient.getConfiguration().getCurrentContext().getContext().getCluster(),
+        kubernetesClient.getMasterUrl().toExternalForm());
+
+    KubernetesSecret kcrv = KubernetesSecret.builder()
+        .osl_KUBCRD_RSPEC_UUID( kubernetesSecretResourceSpec.getUuid() )
+        .name( secret.getMetadata().getName()  
+            + "@" 
+            + secret.getMetadata().getNamespace()
+            + "@" 
+            +  kubernetesClient.getConfiguration().getCurrentContext().getContext().getCluster()
+            + "@" + 
+            kubernetesClient.getMasterUrl().toExternalForm()  )
+        .version( secret.getApiVersion() )
+        .currentContextCluster( kubernetesClient.getConfiguration().getCurrentContext().getContext().getCluster() )
+        .clusterMasterURL( kubernetesClient.getMasterUrl().toString()  )
+        .fullResourceName( "" )
+        .namespace( Serialization.asJson( secret.getMetadata().getNamespace()) )
+        .kind( secret.getKind() )
+        .apiGroup( secret.getPlural() )
+        .uID( secret.getMetadata().getUid() )
+        .metadata(Serialization.asJson( secret.getMetadata())  ) //.metadata( gkr.getMetadata().toString() )        
+        .description( 
+            String.format( "A secret in namespace %s on %s", secret.getMetadata().getNamespace(),  baseCRD ))
+        .build();
+
+
+    secret.getMetadata().getLabels().forEach((pk, pv) -> {
+      logger.debug("\t label: {} {} ", pk, pv);
+      kcrv.getProperties().put( pk  , pv);
+
+    });
+    
+
+    if (secret.getData()  != null)
+      secret.getData().forEach((kPropName, vProVal) -> {
+        logger.debug("propName={} propValue={} ", kPropName, vProVal );        
+        kcrv.getData().put(kPropName, vProVal);
+      });
+    if (secret.getStringData()  != null)
+      secret.getStringData().forEach((kPropName, vProVal) -> {
+        logger.debug("propName={} propValue={} ", kPropName, vProVal );        
+        kcrv.getProperties().put(kPropName, vProVal);
+      });
+    
+    kcrv.setDataObj( Serialization.asYaml( secret.getData() )  );
+    kcrv.setYaml( Serialization.asYaml( secret ) );
+    kcrv.setJson( Serialization.asJson( secret ) );
+
+    return kcrv;
+  }
+
+  
 
   public String deployCR(Map<String, Object> headers, String crspec) {
 
@@ -344,24 +429,30 @@ public class KubernetesClientResource {
       }));
       gkr.getMetadata().setName( "cr-" + (String) headers.get("org.etsi.osl.resourceId")) ;
       
-      String nameSpacename = gkr.getMetadata().getNamespace();
-      if ( gkr.getMetadata().getNamespace() == null ) {
-               gkr.getMetadata().setNamespace( (String) headers.get("org.etsi.osl.serviceOrderId")  );
-               nameSpacename = gkr.getMetadata().getNamespace();        
-      }
+      String nameSpacename = (String) headers.get("org.etsi.osl.namespace");
+
       try {
 
-        //first try create namespace
+        //first try create namespace for the service order
         Namespace ns = new NamespaceBuilder()
             .withNewMetadata()
             .withName( nameSpacename )
             .addToLabels("org.etsi.osl", "org.etsi.osl")
             .endMetadata().build();
-        k8s.namespaces().resource(ns).create();
+        k8s.namespaces().resource(ns).create();        
+        /* if the equivalent namespace for the service order is successfully created the create
+         * related wathcers  for secrets, services, configmaps, pods, etc
+         *     1) we need to create domainmodels for these
+         *     2) we add them as support resources to our initial resource
+         */        
+        createWatchersFornamespace( nameSpacename, headers );
+        
       }catch (Exception e) {
         e.printStackTrace();
       }
       
+      
+
       Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
       dummyObject.create();      
     }
@@ -370,6 +461,92 @@ public class KubernetesClientResource {
 
   }
   
+  /**
+   * if the equivalent namespace for the service order is successfully created the create
+   * related wathcers  for secrets, services, configmaps, pods, etc
+   *     1) we need to create domainmodels for these
+   *     2) we add them as support resources to our initial resource
+   * @param nameSpacename
+   * @param headers 
+   */
+  private void createWatchersFornamespace(String nameSpacename, Map<String, Object> headers) {
+    //watcher for secrets
+      
+      SharedIndexInformer<Secret> shixInformer = 
+          this.getKubernetesClient()
+          .secrets().inNamespace(nameSpacename).inform(new ResourceEventHandler<Secret>() {
+
+            @Override
+            public void onAdd(Secret obj) {
+            logger.debug("Added Namespace watcher Resource Kind:{} Name:{} UID:{} Namespace:{}", 
+                obj.getKind(), 
+                obj.getMetadata().getName(),
+                obj.getMetadata().getUid(),
+                obj.getMetadata().getNamespace());
+            
+            headers.forEach(((hname, hval) ->{
+              if (hval instanceof String s) {
+                if ( hname.contains("org.etsi.osl")) {
+                  logger.debug("Header: {} = {} ", hname, s );      
+                  if ( obj.getMetadata() == null ) {
+                    obj.setMetadata( new ObjectMeta());
+                    obj.getMetadata().setLabels( new HashMap<String, String>());
+                  }
+                  obj.getMetadata().getLabels().put(hname, s);
+                }
+              }
+            }));
+            
+            updateKubernetesSecretResourceInOSLCatalog( obj );     
+            
+            //prpeei me kapoio tropo ta secrets edw na ta persoume eite sto resource ws relationships
+            //eite sto service order.
+              
+            }
+
+            @Override
+            public void onUpdate(Secret oldObj, Secret newObj) {
+              logger.debug("onUpdate Namespace watcher Resource Kind:{} Name:{} UID:{} Namespace:{}", 
+                  newObj.getKind(), 
+                  newObj.getMetadata().getName(),
+                  newObj.getMetadata().getUid(),
+                  newObj.getMetadata().getNamespace());
+              updateKubernetesSecretResourceInOSLCatalog( newObj );    
+              
+            }
+
+            @Override
+            public void onDelete(Secret obj, boolean deletedFinalStateUnknown) {
+              logger.debug("onDelete Namespace watcher Resource Kind:{} Name:{} UID:{} Namespace:{}", 
+                  obj.getKind(), 
+                  obj.getMetadata().getName(),
+                  obj.getMetadata().getUid(),
+                  obj.getMetadata().getNamespace());
+              updateKubernetesSecretResourceInOSLCatalog( obj );    
+              
+            }
+
+        
+      }, 30 * 1000L); // resync period (set 0 for no resync);
+    
+      shixInformer.start();
+    
+  }
+
+  private void updateKubernetesSecretResourceInOSLCatalog(Secret resource) {
+    ResourceCreate rs = this
+        .KubernetesSecret2OpensliceResource( resource )
+        .toResourceCreate();
+
+    catalogClient.createOrUpdateResourceByNameCategoryVersion( rs );  
+    
+  }
+  
+  
+
+  
+  
+
   public String deleteCR(Map<String, Object> headers, String crspec) {
 
     logger.debug("============ DELETE crspec =============" );
@@ -390,9 +567,20 @@ public class KubernetesClientResource {
       }));
       gkr.getMetadata().setName( "cr-" + (String) headers.get("org.etsi.osl.resourceId")) ;
       Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
-      dummyObject.delete();      
-    }
+      List<StatusDetails> result = dummyObject.delete();      
 
+      logger.debug("============ DELETE crspec: result {} =============", result.toString() );
+      
+      String nameSpacename = (String) headers.get("org.etsi.osl.namespace");
+      this.nameSpacesTobeDeleted.put(nameSpacename, nameSpacename);
+      
+    }catch (Exception e) {
+      e.printStackTrace();
+    }
+    
+
+    
+      
     return "DONE";
 
   }
