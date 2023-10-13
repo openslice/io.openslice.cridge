@@ -279,6 +279,7 @@ public class KubernetesClientResource {
           String propertyName = pk +"." +speck;
           String propertyValue = specv.toString();
           kcrv.getProperties().put( propertyName , propertyValue);
+          
           //check resource status
           if ( kcrv.getStatusCheckFieldName().equals(propertyName) ){
             kcrv.setStatusValue(  checKCRVResourceStatus(kcrv, propertyValue) );            
@@ -410,7 +411,6 @@ public class KubernetesClientResource {
     logger.debug("============ Deploy crspec =============" );
     logger.debug("{}", crspec );
    
-    
 
     try (final KubernetesClient k8s = new KubernetesClientBuilder().build()) {
 
@@ -427,7 +427,12 @@ public class KubernetesClientResource {
           }
         }
       }));
-      gkr.getMetadata().setName( "cr-" + (String) headers.get("org.etsi.osl.resourceId")) ;
+      if ( headers.get("org.etsi.osl.prefixId") !=null ) {
+        gkr.getMetadata().setName( (String) headers.get("org.etsi.osl.prefixName") ) ;
+      }else {
+        gkr.getMetadata().setName( "cr" + ((String) headers.get("org.etsi.osl.resourceId")).substring(0, 8) ) ;
+      }
+      
       
       String nameSpacename = (String) headers.get("org.etsi.osl.namespace");
 
@@ -449,15 +454,19 @@ public class KubernetesClientResource {
         
       }catch (Exception e) {
         e.printStackTrace();
+        return "FAIL " + e.getMessage();
       }
       
       
 
       Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
       dummyObject.create();      
+    }catch (Exception e) {
+      e.printStackTrace();
+      return "FAIL " + e.getMessage();
     }
 
-    return "DONE";
+    return "OK";
 
   }
   
@@ -565,7 +574,7 @@ public class KubernetesClientResource {
           }
         }
       }));
-      gkr.getMetadata().setName( "cr-" + (String) headers.get("org.etsi.osl.resourceId")) ;
+      gkr.getMetadata().setName( (String) headers.get("org.etsi.osl.prefixName")) ;
       Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
       List<StatusDetails> result = dummyObject.delete();      
 
