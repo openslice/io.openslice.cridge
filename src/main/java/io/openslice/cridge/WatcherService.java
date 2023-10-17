@@ -108,7 +108,7 @@ public class WatcherService {
 						.get("kubectl.kubernetes.io/last-applied-configuration");
 				String newLAC = newcrd.getMetadata().getAnnotations()
 						.get("kubectl.kubernetes.io/last-applied-configuration");
-				if (!newLAC.equals(oldLAC)) {
+				if ( (newLAC == null) || !newLAC.equals(oldLAC)) {
 					logger.debug("\t NEWCRD:{} Group:{} Kind:{} UID:{} ", newcrd.getMetadata().getName(),
 							newcrd.getSpec().getGroup(), newcrd.getSpec().getNames().getKind(),
 							newcrd.getMetadata().getUid());

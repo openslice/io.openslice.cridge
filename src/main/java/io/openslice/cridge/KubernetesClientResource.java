@@ -74,6 +74,8 @@ public class KubernetesClientResource {
    */
   private ConcurrentHashMap<String, String> nameSpacesTobeDeleted = new ConcurrentHashMap<>();
 
+  private Map<String, Object> watchersForNamespaces = new HashMap<>();
+
   
 
   /**
@@ -444,21 +446,28 @@ public class KubernetesClientResource {
             .withName( nameSpacename )
             .addToLabels("org.etsi.osl", "org.etsi.osl")
             .endMetadata().build();
-        k8s.namespaces().resource(ns).create();        
-        /* if the equivalent namespace for the service order is successfully created the create
-         * related wathcers  for secrets, services, configmaps, pods, etc
-         *     1) we need to create domainmodels for these
-         *     2) we add them as support resources to our initial resource
-         */        
-        createWatchersFornamespace( nameSpacename, headers );
+        k8s.namespaces().resource(ns).create();    
+        
         
       }catch (Exception e) {
-        e.printStackTrace();
-        return "FAIL " + e.getMessage();
+        //e.printStackTrace();
+        //if it exists already just continue!
+        logger.info("Cannot create namespace, already exists!" + e.getMessage() );
+      }
+      
+
+      /* if the equivalent namespace for the service order is successfully created the create
+       * related wathcers  for secrets, services, configmaps, pods, etc
+       *     1) we need to create domainmodels for these
+       *     2) we add them as support resources to our initial resource
+       */        
+
+      if ( this.watchersForNamespaces.get(nameSpacename) !=null ) {
+        SharedIndexInformer<Secret> result = createWatchersFornamespace( nameSpacename, headers );       
+        this.watchersForNamespaces.put(nameSpacename, result);
       }
       
       
-
       Resource<GenericKubernetesResource> dummyObject = k8s.resource( gkr );
       dummyObject.create();      
     }catch (Exception e) {
@@ -477,8 +486,9 @@ public class KubernetesClientResource {
    *     2) we add them as support resources to our initial resource
    * @param nameSpacename
    * @param headers 
+   * @return 
    */
-  private void createWatchersFornamespace(String nameSpacename, Map<String, Object> headers) {
+  private SharedIndexInformer<Secret> createWatchersFornamespace(String nameSpacename, Map<String, Object> headers) {
     //watcher for secrets
       
       SharedIndexInformer<Secret> shixInformer = 
@@ -508,8 +518,6 @@ public class KubernetesClientResource {
             
             updateKubernetesSecretResourceInOSLCatalog( obj );     
             
-            //prpeei me kapoio tropo ta secrets edw na ta persoume eite sto resource ws relationships
-            //eite sto service order.
               
             }
 
@@ -539,6 +547,8 @@ public class KubernetesClientResource {
       }, 30 * 1000L); // resync period (set 0 for no resync);
     
       shixInformer.start();
+      
+      return shixInformer;
     
   }
 
@@ -582,6 +592,7 @@ public class KubernetesClientResource {
       
       String nameSpacename = (String) headers.get("org.etsi.osl.namespace");
       this.nameSpacesTobeDeleted.put(nameSpacename, nameSpacename);
+      this.watchersForNamespaces.remove(nameSpacename);
       
     }catch (Exception e) {
       e.printStackTrace();
