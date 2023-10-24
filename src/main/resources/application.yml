@@ -15,7 +15,7 @@ spring:
       trust-all: true
 
 server:
-  port: 13013
+  port: 13014
   
    
 logging:

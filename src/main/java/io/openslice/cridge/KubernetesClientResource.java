@@ -411,6 +411,25 @@ public class KubernetesClientResource {
   public String deployCR(Map<String, Object> headers, String crspec) {
 
     logger.debug("============ Deploy crspec =============" );
+
+    logger.debug("Check if this CRIDGE instance is related to this deployment" );
+    if ( (headers.get("currentContextCluster") ==null) || 
+        ( ! headers.get("currentContextCluster").equals( kubernetesContextDefinition.getCurrentContextCluster() ))) {
+
+      logger.debug("Will return SEE OTHER header={}, this.context= {}", headers.get("currentContextCluster"),  kubernetesContextDefinition.getCurrentContextCluster() );
+      return "SEE OTHER";
+      
+    }
+    
+    if ( (headers.get("clusterMasterURL") ==null) || 
+        ( ! headers.get("clusterMasterURL").equals( kubernetesContextDefinition.getMasterURL() ))) {
+
+      logger.debug("Will return SEE OTHER header={}, this.context= {}", headers.get("clusterMasterURL"),  kubernetesContextDefinition.getMasterURL() );
+      return "SEE OTHER";
+      
+    }
+    
+    logger.debug("Deploy the following CR:" );
     logger.debug("{}", crspec );
    
 
@@ -457,12 +476,12 @@ public class KubernetesClientResource {
       
 
       /* if the equivalent namespace for the service order is successfully created the create
-       * related wathcers  for secrets, services, configmaps, pods, etc
+       * related watchers  for secrets, services, configmaps, pods, etc
        *     1) we need to create domainmodels for these
        *     2) we add them as support resources to our initial resource
        */        
 
-      if ( this.watchersForNamespaces.get(nameSpacename) !=null ) {
+      if ( this.watchersForNamespaces.get(nameSpacename) == null ) {
         SharedIndexInformer<Secret> result = createWatchersFornamespace( nameSpacename, headers );       
         this.watchersForNamespaces.put(nameSpacename, result);
       }

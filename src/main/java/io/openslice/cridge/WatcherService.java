@@ -54,6 +54,10 @@ public class WatcherService {
 	private KubernetesClientResource kubernetesClientResource;
 
 
+	/**
+	 * This one is executed when the cridge service application starts
+	 * @param event
+	 */
 	@EventListener
 	public void onApplicationEvent(ContextRefreshedEvent event) {
 
@@ -181,6 +185,10 @@ public class WatcherService {
 
 	}
 
+	/**
+	 * register the Kubernetes Context of this Cridge instance
+	 * @return
+	 */
 	private Resource registerKubernetesClientInOSLResource() {
 	
 		try {
